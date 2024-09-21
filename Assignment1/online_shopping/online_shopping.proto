@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+import "google/protobuf/wrappers.proto"; //Used for 'remove_product', provides predefined messages or "data types" 
+import "google/protobuf/empty.proto"; //Used for 'list_available_product', provides predefined messages or "data types" 
+
+package online_shopping_system;
+
+service OnlineShoppingSystem {
+    //Admin functions
+    rpc add_product(Product) returns (google.protobuf.Int32Value); //Returns 'unique code'
+    rpc create_users(stream User) returns (User); //The user profile should be 'streamed' to the server
+    rpc list_users(Void) returns (Users); 
+    rpc update_product(Product) returns (Product);
+    rpc remove_product(google.protobuf.Int32Value) returns (Products); //Return updated list of products after removal
+    //Customer functions
+    rpc list_available_product(google.protobuf.Empty) returns (Products); 
+    rpc search_product(google.protobuf.StringValue) returns (Product);
+    rpc add_to_cart(Cart) returns (google.protobuf.Int32Value);
+    rpc place_order(google.protobuf.Int32Value) returns (Products);
+    //Login
+    rpc login(Login) returns (User);
+}
+
+//Products
+message Product {
+    string sku = 1;
+    int32 code = 2;
+    string name = 3;
+    string price = 4;
+    string status = 5;
+    string description = 6;
+    int32 stock_quantity = 7;
+}
+message Products {
+    repeated Product products = 1; //Returns Array of 'Product' object
+}
+
+//Cart
+message Cart {
+    string userId = 1;
+    string sku = 2;
+}
+
+//Users
+message User {
+    int32 id = 1;
+    bool isAdmin = 2;
+    string username = 3;
+    string firstName = 4;
+    string lastName = 5;
+    string password = 6;
+}
+message Users {
+    repeated User users = 1;
+}
+
+//Login
+message Login {
+    string username = 1;
+    string password = 2;
+}
+
+//Void
+message Void {
+}
