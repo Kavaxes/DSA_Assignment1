@@ -1,5 +1,13 @@
 import ballerina/http;
 import ballerina/time;
+import ballerina/io;
+
+type Course record {
+    string CourseName;
+    string CourseCode;
+    int nqflevel;
+    string[] courseinfo = []; // Add information about the course
+};
 
 
 type Program record {|
@@ -20,7 +28,7 @@ table<Program> key(Programme_Code) Programs = table [
     {Programme_Code: "ENG542",NQF_Level: 7,Faculty: "Faculty of Physical Activity", Programme: "Bachelor of Movement at Own Risk ", Registration_Date: ({year: 2014, month: 10, day: 15}), Department: "Department of Movement", Programme_Courses:["MVE - Movement 101","KUT - Kick Up 101\n"]}
 ];
 
-service / on new http:Listener(9090) {
+service /TheManagementProgramme on new http:Listener(9090) {
 
     // Retrieve all programs or a specific program based on query parameters
     resource function get Programs(http:Request req) returns Program[]|Program|error {
@@ -73,12 +81,15 @@ function isDatePassed(time:Date registrationDate, time:Date currentDate) returns
     }
     return false;
 }
-
+    //adding new program
    resource function post Programs(Program program) returns Program {
         Programs.add(program);
+        string response = 
+                          "The programme added";
+        io:println("🎊 " + response);
         return program;  
    }
-
+   
    // PUT: Update a program by Programme_Code
     resource function put Programs/[string Programme_Code](Program updatedProgram) returns string|error {
         Program? program = Programs[Programme_Code];
@@ -103,7 +114,7 @@ function isDatePassed(time:Date registrationDate, time:Date currentDate) returns
         Program? program = Programs[progCode];
 
         if (program is Program) {
-            Program _ = check Programs.remove(progCode);
+            Program _ = Programs.remove(progCode);
             return "Program with Programme_Code '" + progCode + "' deleted successfully.";
         }
         
