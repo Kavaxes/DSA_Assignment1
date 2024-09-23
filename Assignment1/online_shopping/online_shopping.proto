@@ -13,7 +13,7 @@ service OnlineShoppingSystem {
     rpc update_product(Product) returns (Product);
     rpc remove_product(google.protobuf.Int32Value) returns (Products); //Return updated list of products after removal
     //Customer functions
-    rpc list_available_product(google.protobuf.Empty) returns (Products); 
+    rpc list_available_products(google.protobuf.Empty) returns (Products); 
     rpc search_product(google.protobuf.StringValue) returns (Product);
     rpc add_to_cart(Cart) returns (google.protobuf.Int32Value);
     rpc place_order(google.protobuf.Int32Value) returns (Products);

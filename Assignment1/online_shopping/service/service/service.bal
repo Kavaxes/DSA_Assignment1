@@ -32,7 +32,15 @@ service "OnlineShoppingSystem" on ep {
 
     remote function add_product(Product value) returns int|error {
         int new_code = self.code + 1;
-        Product product ={sku:value.sku, code:new_code, name:value.name, price:value.price, status:value.status, description:value.description, stock_quantity:value.stock_quantity};
+        Product product ={
+            sku:value.sku, 
+            code:new_code, 
+            name:value.name, 
+            price:value.price, 
+            status:value.status, 
+            description:value.description, 
+            stock_quantity:value.stock_quantity
+        };
         lock {
             if self.products.hasKey(new_code.clone().toString()){
                 string err = "Product with code '" + new_code.clone().toString() + "' already exists!";
@@ -40,12 +48,13 @@ service "OnlineShoppingSystem" on ep {
             }
             else{
                 self.products[new_code.clone().toString()] = product.clone();
-                return value.code;
+                return new_code;
             }
         }
     }
 
-   
+   // Function to view all products in the inventory
+
 
     remote function update_product(Product value) returns Product|error {
         Product product ={sku:value.sku, code: value.code, name:value.name, price:value.price, status:value.status, description:value.description, stock_quantity:value.stock_quantity};

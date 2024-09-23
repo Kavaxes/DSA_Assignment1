@@ -48,11 +48,45 @@ class Profile {
         }
     }
 }
+Profile profile = new Profile();
 OnlineShoppingSystemClient ep = check new ("http://localhost:9090");
+// this is to store all the user ids to avoid duplication
+int userIdCounter = 0;
+
+// Global map to track existing product codes
+map<boolean> productCodes = {};
 
 public function main() returns error? {
     io:println("Welcome to the 'Online Shopping System'!");
     io:println("-----------------------------------------\n");
+    
+    io:println("Please choose your role:");
+    io:println("1. Admin");
+    io:println("2. Customer");
+    io:println("3. Continue as Guest");
+    string roleOption = io:readln("Enter your option (1/2/3): ");
+
+    match roleOption {
+        "1" => {
+            error? loginResult = login("admin");
+        }
+        "2" => {
+            error? loginResult = login("customer");
+        }
+        "3" => {
+            profile.setRole("guest");
+            io:println("You are continuing as a Guest.");
+        }
+        _ => {
+            io:println("Invalid option! Continuing as Guest by default.");
+            profile.setRole("guest");
+        }
+    }
+
+    io:println("Type 'help' to view available commands.\n");
+    
+    
+    
     while true {
         string cmd = io:readln("Online-Shopping> ");
         if cmd == "exit" {
@@ -71,7 +105,167 @@ public function main() returns error? {
     //io:println(place_orderResponse);
 }
 
-Profile profile = new Profile();
+function login(string role) returns error? {
+    string username = io:readln("Username: ");
+    string password = io:readln("Password: ");
+
+    Login loginRequest = {username: username, password: password};
+    User loginResponse = check ep->login(loginRequest);
+
+    if role == "admin" && loginResponse.isAdmin {
+        profile.setRole("admin");
+        profile.setUserName(loginResponse.username);
+        io:println("Welcome Admin, " + loginResponse.username);
+        error? adminMenuResult = adminMenu();
+    } else if role == "customer" && !loginResponse.isAdmin {
+        profile.setRole("customer");
+        profile.setUserName(loginResponse.username);
+        io:println("Welcome Customer, " + loginResponse.username);
+        error? customerMenuResult = customerMenu();
+    } else {
+        io:println("Login failed. Invalid credentials for the selected role.");
+        profile.setRole("guest");
+        profile.setUserName("Guest");
+    }
+}
+function adminMenu() returns error? {
+    io:println("\n--- Admin Actions ---");
+    io:println("1. Add a Product");
+    io:println("2. List Users");
+    io:println("3. Update a Product");
+    io:println("4. Remove a Product");
+    io:println("5. Create a User");
+    io:println("6. Logout");
+
+    while true {
+        string choice = io:readln("\nChoose an option (1-6): ");
+        match choice {
+            "1" => {
+                error? product = addProduct();
+            }
+            "2" => {
+                error? listUsersResult = listUsers();
+            }
+            "3" => {
+                error? product = updateProduct();
+            }
+            "4" => {
+                error? removeProductResult = removeProduct();
+            }
+            "5" => {
+                error? user = createUser();  // New function call for creating a user
+            }
+            "6" => {
+                io:println("Logging out...");
+                profile = new Profile();  // Reset profile on logout
+                return;
+            }
+            
+            _ => {
+                io:println("Invalid option! Please choose a valid admin action (1-5).");
+            }
+        }
+    }
+}
+
+// Admin command handlers
+function addProduct() returns error? {
+    io:println("Adding new product...");
+    string sku = io:readln("SKU: ");
+    string name = io:readln("Name: ");
+    string price = io:readln("Price: ");
+    string status = io:readln("Status: ");
+    string description = io:readln("Description: ");
+    string input = io:readln("Stock Quantity: ");
+    int|error stock_quantity = int:fromString(input);
+    
+     // Loop until a unique code is provided
+    Product addProductRequest = {
+        sku: sku,
+        code: -1, 
+        name: name, 
+        price: price, 
+        status: status, 
+        description: description, 
+        stock_quantity: check stock_quantity
+    };
+    
+    int addProductResponse = check ep->add_product(addProductRequest);
+    io:println("Product added successfully with code: " + addProductRequest.toString());
+}
+
+function listUsers() returns error? {
+    io:println("Listing users...");
+    Void listUsersRequest = {};
+    Users listUsersResponse = check ep->list_users(listUsersRequest);
+    io:println(listUsersResponse);
+}
+
+function updateProduct() returns error? {
+    io:println("Updating a product...");
+    string input1 = io:readln("Enter product code: ");
+    int|error code = int:fromString(input1);
+    string name = io:readln("Update name: ");
+    string sku = io:readln("Update SKU: ");
+    string price = io:readln("Update price: ");
+    string status = io:readln("Update status: ");
+    string description = io:readln("Update description: ");
+    string input2 = io:readln("Update stock quantity: ");
+    int|error stock_quantity = int:fromString(input2);
+
+    Product updateProductRequest = {sku: sku, code: check code, name: name, price: price, status: status, description: description, stock_quantity: check stock_quantity};
+    Product updateProductResponse = check ep->update_product(updateProductRequest);
+    io:println("Product updated successfully: " + updateProductResponse.toString());
+}
+
+function removeProduct() returns error? {
+    io:println("Removing product from inventory...");
+    string input = io:readln("Enter product code: ");
+    int code = check int:fromString(input);
+    Products removeProductResponse = check ep->remove_product(code);
+    io:println("Product removed successfully: " + removeProductResponse.toString());
+}
+
+function createUser() returns error? {
+    io:println("Adding a new user...");
+    string input = io:readln("Are you adding an admin(y/N): ");
+    boolean isAdmin = false;
+    if (input == "y") {
+        isAdmin = true;
+    }
+    string firstName = io:readln("First Name: ");
+    string lastName = io:readln("Last Name: ");
+    string password = io:readln("Password: ");
+    string username = firstName.toLowerAscii().substring(0, 1) + lastName.toLowerAscii();
+    // generate a unique 4 digit id
+    int userId = generateNextUserId();
+
+    User createUserRequest = {id: userId,
+     isAdmin: isAdmin, 
+     username: username, 
+     firstName: firstName, 
+     lastName: lastName,
+     password: password
+    };
+    Create_usersStreamingClient createUsersStreamingClient = check ep->create_users();
+    check createUsersStreamingClient->sendUser(createUserRequest);
+    check createUsersStreamingClient->complete();
+    User? createUserResponse = check createUsersStreamingClient->receiveUser();
+
+    if createUserResponse is User {
+        io:println("User created successfully with ID: "+ userId.toString());
+        io:println(createUserResponse);
+    } else {
+        io:println("Failed to create user.");
+    }
+}
+
+// Generate the next sequential user ID
+function generateNextUserId() returns int {
+    userIdCounter += 1;
+    return userIdCounter;
+}
+
 
 
 function Cmd(string cmd) returns error?{
@@ -81,6 +275,13 @@ function Cmd(string cmd) returns error?{
         }
         "?" => {
             help();
+        }
+        "profile" => {
+            profile.getProfile();
+        }
+        "logout" => {
+            profile = new Profile();
+            io:println("You have been logged out.");
         }
         //Authentication
         "login" => {
@@ -92,10 +293,12 @@ function Cmd(string cmd) returns error?{
             if loginResponse.isAdmin{
                profile.setRole("admin");
                 profile.setUserName(loginResponse.username);
+                error? adminMenuResult = adminMenu();
             }
             else{
                 profile.setRole("customer");
                 profile.setUserName(loginResponse.username);
+                error? customerMenuResult = customerMenu();
             }
         }
         "logout" => {
@@ -104,120 +307,47 @@ function Cmd(string cmd) returns error?{
         "profile" => {
             profile.getProfile();
         }
-        //Admin commands
-        "add_product" => {
-            if (profile.admin){
-                io:println("Adding new product...");
-                string sku = io:readln("SKU: ");
-                string name = io:readln("Name: ");
-                string price = io:readln("Price: ");
-                string status = io:readln("Status: ");
-                string description = io:readln("Description: ");
-                string input = io:readln("Stock Quantity: ");
-                int|error stock_quantity = int:fromString(input);
-
-                Product add_productRequest = {sku: sku, code: 0, name: name, price: price, status: status, description: description, stock_quantity: check stock_quantity};
-                int add_productResponse = check ep->add_product(add_productRequest);
-                io:println(add_productResponse);
-            }
-            else{
-                io:println("Access denied!");
-            }
-        }
-        "create_users" => {
-            if (profile.admin){
-                io:println("Adding a new user...");
-                string input = io:readln("Admin (y/N): ");
-                boolean isAdmin = false;
-                if (input == "y"){
-                    isAdmin = true;
-                }
-                string firstName = io:readln("firstName: ");
-                string lastName = io:readln("lastName: ");
-                string password = io:readln("Password: ");
-                string username = firstName.toLowerAscii().substring(0,1) + lastName.toLowerAscii();
-
-                User create_usersRequest = {id: 0, isAdmin: isAdmin, username: username, firstName: firstName, lastName: lastName, password: password};
-                Create_usersStreamingClient create_usersStreamingClient = check ep->create_users();
-                check create_usersStreamingClient->sendUser(create_usersRequest);
-                check create_usersStreamingClient->complete();
-                User? create_usersResponse = check create_usersStreamingClient->receiveUser();
-                io:println(create_usersResponse);
-            }
-            else{
-                io:println("Access denied!");
-            }
-            
-        }
-        "list_users" => {
-            if (profile.admin){
-                Void list_usersRequest = {};
-                Users list_usersResponse = check ep->list_users(list_usersRequest);
-                io:println(list_usersResponse);
-            }
-            else{
-                io:println("Access denied!");
-            }
-        }
-        "update_product" => {
-            if (profile.admin){
-                io:println("Updating a product...");
-                string input1 = io:readln("Enter product's code: ");
-                int|error code  = int:fromString(input1);
-                string name = io:readln("Update name: ");
-                string sku = io:readln("Update SKU: ");
-                string price = io:readln("Update price: ");
-                string status = io:readln("Update status: ");
-                string description = io:readln("Update description: ");
-                string input2 = io:readln("Update stock quantity: ");
-                int|error stock_quantity = int:fromString(input2);
-
-                Product update_productRequest = {sku: sku, code: check code, name: name, price: price, status: status, description: description, stock_quantity: check stock_quantity};
-                Product update_productResponse = check ep->update_product(update_productRequest);
-                io:println(update_productResponse);
-            }
-            else{
-                io:println("Access denied!");
-            }
-        }
-        "remove_product" => {
-            io:println("Removing product from inventory...");
-            string input = io:readln("Enter product code: ");
-            int code = check int:fromString(input);
-            Products remove_productResponse = check ep->remove_product(code);
-            io:println(remove_productResponse);
-        }
+    }
+}
 
         //Customer commands
-        "list_available_products" => {
-            Products list_available_productResponse = check ep->list_available_product();
-            io:println(list_available_productResponse);
-        }
-        "search_product" => {
-            string sku = io:readln("Enter the SKU of the product: ");
-            Product|error search_productResponse = ep->search_product(sku);
-            if (search_productResponse is Product) {
-                io:println("Product found:");
-                io:println(search_productResponse);
-            }  
-            else {
-                io:println("Product not found or unavailable.");
+function customerMenu() returns error? {
+    io:println("\n--- Customer Actions ---");
+    io:println("1. List available products");
+    io:println("2. Search available products");
+    io:println("3. Add products to cart");
+    io:println("4. Place an order");
+    io:println("5. Logout");
+
+    while true {
+        string choice = io:readln("\nChoose an option (1-5): ");
+        match choice {
+            "1" => {
+                error? listAvailableproductResponse = list_available_productResponse();
+            }
+            "2" => {
+                search_products();
+            }
+            "3" => {
+                error? tocart = add_to_cart();
+            }
+            "4" => {
+                error? placeOrder = place_order();
+            }
+            "5" => {
+                io:println("Logging out...");
+                profile = new Profile();  // Reset profile on logout
+                return;
+            }
+            
+            _ => {
+                io:println("Invalid option! Please choose a valid admin action (1-5).");
             }
         }
-        "add_to_cart" => {
-            if (profile.customer) {
-                io:println("Adding product to cart...");
-                string userId = profile.username;
-                string sku = io:readln("Enter the SKU of the product: ");
-                Cart cartAddRequest = {userId: userId, sku: sku};
-                int cartAddResponse = check ep->add_to_cart(cartAddRequest);
-                io:println("Product added to cart successfully. Cart ID: " + cartAddResponse.toString());
-                }
-            else {
-                io:println("Access denied! You must be a customer to add products to cart.");
-            }
-        }
-       "place_order" => {
+    }
+}
+
+function place_order()  returns error? {
     if (profile.customer) {
         io:println("Placing order...");
         string userId = profile.username;
@@ -230,11 +360,43 @@ function Cmd(string cmd) returns error?{
         io:println("Order placed successfully. Order ID: " + placeOrderResponse.toString());
     } else {
         io:println("Access denied! You must be a customer to place an order.");
+    }    
+}
+
+function add_to_cart() returns error?  {
+
+    if (profile.customer) {
+        io:println("Adding product to cart...");
+         string userId = profile.username;
+         string sku = io:readln("Enter the SKU of the product: ");
+         Cart cartAddRequest = {userId: userId, sku: sku};
+         int cartAddResponse = check ep->add_to_cart(cartAddRequest);
+         io:println("Product added to cart successfully. Cart ID: " + cartAddResponse.toString());
+    }
+    else {
+        io:println("Access denied! You must be a customer to add products to cart.");
     }
 }
 
-           }   
-    }
+function search_products() {
+    string sku = io:readln("Enter the SKU of the product: ");
+    Product|error search_productResponse = ep->search_product(sku);
+     if (search_productResponse is Product) {
+        io:println("Product found:");
+        io:println(search_productResponse);
+     }  
+     else {
+        io:println("Product not found or unavailable.");
+     }
+}
+
+function list_available_productResponse() returns error? {
+    Products list_available_productResponse = check ep->list_available_product();
+    io:println(list_available_productResponse);
+}
+        
+    
+
 
 
 
