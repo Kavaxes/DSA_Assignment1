@@ -12,6 +12,16 @@ type Program record {|
     string[] Programme_Courses;
 |};
 
+// Student information placeholders
+string StudentName = "Name";
+string StudentNumber = "Student Number";
+string[] systemDescription = [
+    "Welcome to the Medellin Cartel Programme System!",
+    "This system will allow you to manage university programmes and courses as you see fit.",
+    "You can add, view, update, and delete programmes."
+];
+
+
 public function main() returns error? {
 
     // Define the HTTP client to communicate with the service running on localhost:9090
